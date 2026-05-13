@@ -1,0 +1,344 @@
+# ============================================================================
+# CSOC-SSC DE NOVO PREDICTOR (VERSION 3.0 - ADVANCED ARCHITECTURE)
+# Title: Criticality-Driven Torsion-Aware Protein Predictor
+# ============================================================================
+
+import math
+import numpy as np
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.cuda.amp import autocast, GradScaler
+from dataclasses import dataclass, field
+from typing import List, Tuple, Optional, Dict
+import warnings
+
+# Optional CuPy import
+try:
+    import cupy as cp
+    CUPY_AVAILABLE = True
+except ImportError:
+    CUPY_AVAILABLE = False
+    warnings.warn("CuPy not available. Falling back to CPU for ASM.", UserWarning)
+
+# ============================================================================
+# SECTION 1: CONFIGURATION & BIOCHEMICAL CONSTANTS
+# ============================================================================
+
+@dataclass
+class CSOCAdvancedConfig:
+    device_id: int = 0
+    embed_dim: int = 128
+    n_evo_blocks: int = 2
+    
+    # ASM Criticality
+    asm_L: int = 64
+    asm_alpha: float = 2.5
+    asm_gravity: float = 0.85
+    
+    # Optimization
+    n_recycling: int = 3
+    n_stages: int = 3
+    n_iter_per_stage: int = 200
+    learning_rate: float = 5e-2  # Higher for angle optimization
+    base_langevin_temp: float = 300.0
+    
+    # Loss Weights
+    w_fape: float = 10.0
+    w_rama: float = 2.0
+    w_clash: float = 50.0
+    w_dist: float = 5.0
+
+# Idealized backbone geometry
+BOND_LENGTHS = {'N-CA': 1.46, 'CA-C': 1.52, 'C-N': 1.33}
+BOND_ANGLES = {'C-N-CA': 2.13, 'N-CA-C': 1.94, 'CA-C-N': 2.03} # in radians
+
+# ============================================================================
+# SECTION 2: KINEMATICS & GEOMETRY (TORSION TO CARTESIAN)
+# ============================================================================
+
+def nerf_build_atom(A: torch.Tensor, B: torch.Tensor, C: torch.Tensor, 
+                    bond_len: float, bond_angle: float, torsion: torch.Tensor) -> torch.Tensor:
+    """
+    Natural extension Reference Frame (NeRF).
+    Builds atom D given atoms A, B, C and internal coordinates.
+    """
+    # Create local coordinate system
+    BC = C - B
+    bc_unit = BC / (torch.norm(BC, dim=-1, keepdim=True) + 1e-8)
+    
+    n = torch.cross(B - A, bc_unit)
+    n_unit = n / (torch.norm(n, dim=-1, keepdim=True) + 1e-8)
+    
+    m = torch.cross(n_unit, bc_unit)
+    
+    # Local coordinates of D
+    D_local = torch.stack([
+        bond_len * torch.cos(torch.tensor(math.pi) - bond_angle) * torch.ones_like(torsion),
+        bond_len * torch.sin(torch.tensor(math.pi) - bond_angle) * torch.cos(torsion),
+        bond_len * torch.sin(torch.tensor(math.pi) - bond_angle) * torch.sin(torsion)
+    ], dim=-1)
+    
+    # Transform to global
+    M = torch.stack([bc_unit, m, n_unit], dim=-2)
+    D_global = C + torch.einsum('bji,bi->bj', M, D_local)
+    return D_global
+
+class TorsionToCartesian(nn.Module):
+    """Converts sequence of (phi, psi, omega) to N, CA, C coordinates."""
+    def __init__(self):
+        super().__init__()
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+    def forward(self, dihedrals: torch.Tensor) -> torch.Tensor:
+        """
+        dihedrals: (L, 3) containing phi, psi, omega
+        Returns: (L, 3, 3) containing coordinates for N, CA, C
+        """
+        L = dihedrals.shape[0]
+        coords = torch.zeros((L, 3, 3), device=dihedrals.device, dtype=dihedrals.dtype)
+        
+        # Initialize first atoms (dummy positions for the first rigid body)
+        coords[0, 0] = torch.tensor([0.0, 0.0, 0.0]) # N
+        coords[0, 1] = torch.tensor([BOND_LENGTHS['N-CA'], 0.0, 0.0]) # CA
+        
+        # Calculate C based on idealized angle
+        c_x = BOND_LENGTHS['N-CA'] - BOND_LENGTHS['CA-C'] * math.cos(BOND_ANGLES['N-CA-C'])
+        c_y = BOND_LENGTHS['CA-C'] * math.sin(BOND_ANGLES['N-CA-C'])
+        coords[0, 2] = torch.tensor([c_x, c_y, 0.0]) # C
+        
+        # Iteratively build backbone
+        for i in range(1, L):
+            phi, psi, omega = dihedrals[i, 0], dihedrals[i, 1], dihedrals[i-1, 2]
+            
+            # Build N_i using C_{i-1}, CA_{i-1}, N_{i-1} and omega
+            coords[i, 0] = nerf_build_atom(coords[i-1, 0], coords[i-1, 1], coords[i-1, 2], 
+                                           BOND_LENGTHS['C-N'], BOND_ANGLES['CA-C-N'], omega)
+            # Build CA_i using N_i, C_{i-1}, CA_{i-1} and phi
+            coords[i, 1] = nerf_build_atom(coords[i-1, 1], coords[i-1, 2], coords[i, 0], 
+                                           BOND_LENGTHS['N-CA'], BOND_ANGLES['C-N-CA'], phi)
+            # Build C_i using CA_i, N_i, C_{i-1} and psi
+            coords[i, 2] = nerf_build_atom(coords[i-1, 2], coords[i, 0], coords[i, 1], 
+                                           BOND_LENGTHS['CA-C'], BOND_ANGLES['N-CA-C'], psi)
+            
+        return coords
+
+# ============================================================================
+# SECTION 3: NEURAL NETWORK (EVOFORMER SKELETON)
+# ============================================================================
+
+class PseudoEvoformerBlock(nn.Module):
+    """Simplified geometric refinement block replacing standard CNNs."""
+    def __init__(self, d_model: int):
+        super().__init__()
+        self.norm1 = nn.LayerNorm(d_model)
+        self.triangle_attention = nn.MultiheadAttention(d_model, num_heads=4, batch_first=True)
+        self.norm2 = nn.LayerNorm(d_model)
+        self.ffn = nn.Sequential(
+            nn.Linear(d_model, d_model * 2),
+            nn.GELU(),
+            nn.Linear(d_model * 2, d_model)
+        )
+
+    def forward(self, z: torch.Tensor) -> torch.Tensor:
+        # z shape: (L*L, d_model) for simplified attention processing
+        z_norm = self.norm1(z)
+        attn_out, _ = self.triangle_attention(z_norm, z_norm, z_norm)
+        z = z + attn_out
+        z = z + self.ffn(self.norm2(z))
+        return z
+
+class StructurePriorNet(nn.Module):
+    def __init__(self, vocab_size=21, embed_dim=128, n_blocks=2):
+        super().__init__()
+        self.embedding = nn.Embedding(vocab_size, embed_dim // 2)
+        
+        self.blocks = nn.ModuleList([
+            PseudoEvoformerBlock(embed_dim) for _ in range(n_blocks)
+        ])
+        
+        self.dist_head = nn.Linear(embed_dim, 1)
+        
+    def forward(self, seq_tokens: torch.Tensor) -> torch.Tensor:
+        L = seq_tokens.shape[0]
+        x_1d = self.embedding(seq_tokens)
+        
+        # Outer product mock
+        x_i = x_1d.unsqueeze(1).expand(L, L, -1)
+        x_j = x_1d.unsqueeze(0).expand(L, L, -1)
+        z = torch.cat([x_i, x_j], dim=-1).view(L*L, -1) # (L*L, embed_dim)
+        
+        for block in self.blocks:
+            z = block(z)
+            
+        z = z.view(L, L, -1)
+        dist_pred = F.softplus(self.dist_head(z).squeeze(-1))
+        mask = 1.0 - torch.eye(L, device=seq_tokens.device)
+        return dist_pred * mask
+
+# ============================================================================
+# SECTION 4: ASM DRIVER & HYBRID OPTIMIZER (RETAINED & ADAPTED)
+# ============================================================================
+
+class FastASM:
+    """Simplified Avalanche Sandpile Model for fast execution."""
+    def __init__(self, L: int):
+        self.L = L
+        self.S = np.random.rand(L, L) * 3.0
+        
+    def step(self) -> int:
+        x, y = np.random.randint(1, self.L-1, size=2)
+        self.S[x, y] += 1.0
+        avalanches = 0
+        
+        while np.max(self.S) >= 4.0:
+            topple = (self.S >= 4.0)
+            self.S[topple] -= 4.0
+            
+            # Distribute to neighbors
+            shifted_up = np.pad(topple[:-1, :], ((1,0), (0,0)))
+            shifted_down = np.pad(topple[1:, :], ((0,1), (0,0)))
+            shifted_left = np.pad(topple[:, :-1], ((0,0), (1,0)))
+            shifted_right = np.pad(topple[:, 1:], ((0,0), (0,1)))
+            
+            self.S += shifted_up + shifted_down + shifted_left + shifted_right
+            avalanches += np.sum(topple)
+            
+        return int(avalanches)
+
+class LangevinTorsionOptimizer(torch.optim.AdamW):
+    """AdamW adapted for internal coordinates with SOC Langevin temperature."""
+    def step_with_noise(self, temperature: float):
+        super().step()
+        if temperature > 0:
+            for group in self.param_groups:
+                for p in group['params']:
+                    if p.grad is not None:
+                        # Add bounded noise for angles (radians)
+                        noise_scale = math.sqrt(2 * temperature * group['lr'] / 300.0)
+                        noise = torch.randn_like(p.data) * noise_scale * 0.01 
+                        p.data.add_(noise)
+
+# ============================================================================
+# SECTION 5: PHYSICS LOSS ENGINE
+# ============================================================================
+
+class PhysicsLossEngine:
+    def __init__(self, config: CSOCAdvancedConfig, device: torch.device):
+        self.config = config
+        self.device = device
+        
+    def _ramachandran_penalty(self, dihedrals: torch.Tensor) -> torch.Tensor:
+        """Penalizes physically impossible phi/psi angle combinations."""
+        phi, psi = dihedrals[:, 0], dihedrals[:, 1]
+        
+        # Simplified favorable regions (Alpha helix and Beta sheet)
+        # Helix: phi ~ -60, psi ~ -45
+        helix_dist = (phi - (-1.05))**2 + (psi - (-0.78))**2
+        # Sheet: phi ~ -135, psi ~ +135
+        sheet_dist = (phi - (-2.35))**2 + (psi - (2.35))**2
+        
+        # Penalize if far from both
+        min_dist = torch.min(helix_dist, sheet_dist)
+        return torch.mean(min_dist)
+
+    def compute(self, coords: torch.Tensor, dihedrals: torch.Tensor, pred_dist: torch.Tensor) -> Tuple[torch.Tensor, dict]:
+        ca_coords = coords[:, 1, :]
+        L = ca_coords.shape[0]
+        
+        # 1. Pseudo-FAPE (Local Distance constraints)
+        dist_mat = torch.cdist(ca_coords, ca_coords)
+        mask = 1.0 - torch.eye(L, device=self.device)
+        loss_dist = torch.mean((dist_mat - pred_dist)**2 * mask)
+        
+        # 2. Steric Clash (on all atoms: N, CA, C)
+        flat_coords = coords.view(-1, 3)
+        all_dist = torch.cdist(flat_coords, flat_coords)
+        clash_mask = (all_dist < 2.5) & (torch.eye(L*3, device=self.device) == 0)
+        loss_clash = torch.sum((2.5 - all_dist[clash_mask])**2) if clash_mask.any() else torch.tensor(0.0)
+        
+        # 3. Ramachandran Prior
+        loss_rama = self._ramachandran_penalty(dihedrals)
+        
+        total_loss = (self.config.w_dist * loss_dist + 
+                      self.config.w_clash * loss_clash + 
+                      self.config.w_rama * loss_rama)
+                      
+        return total_loss, {
+            'dist': loss_dist.item(), 'clash': loss_clash.item(), 
+            'rama': loss_rama.item(), 'total': total_loss.item()
+        }
+
+# ============================================================================
+# SECTION 6: THE PIPELINE
+# ============================================================================
+
+class AdvancedDeNovoPredictor:
+    def __init__(self, config: CSOCAdvancedConfig):
+        self.config = config
+        self.device = torch.device(f'cuda:{config.device_id}' if torch.cuda.is_available() else 'cpu')
+        
+        self.aa2int = {aa: i for i, aa in enumerate('ACDEFGHIKLMNPQRSTVWY-')}
+        self.prior_net = StructurePriorNet(embed_dim=config.embed_dim).to(self.device)
+        self.prior_net.eval()
+        
+        self.builder = TorsionToCartesian().to(self.device)
+        self.loss_engine = PhysicsLossEngine(config, self.device)
+        self.asm_driver = FastASM(config.asm_L)
+        
+    def predict(self, seq: str):
+        print(f"\n🧬 Initiating Torsion-Aware Prediction | Length: {len(seq)} AA")
+        tokens = torch.tensor([self.aa2int.get(aa, 20) for aa in seq], device=self.device)
+        
+        # ML Prior
+        with torch.no_grad():
+            pred_distogram = self.prior_net(tokens)
+            
+        # Initialize internal coordinates (dihedrals) instead of XYZ
+        # Start in extended beta-strand conformation
+        dihedrals = torch.zeros((len(seq), 3), device=self.device, requires_grad=True)
+        dihedrals.data[:, 0] = -2.35 # phi
+        dihedrals.data[:, 1] = 2.35  # psi
+        dihedrals.data[:, 2] = 3.14  # omega (trans)
+        
+        optimizer = LangevinTorsionOptimizer([dihedrals], lr=self.config.learning_rate)
+        
+        for recycle in range(self.config.n_recycling):
+            print(f"\n🔄 Recycling Stage {recycle + 1}/{self.config.n_recycling}")
+            
+            for stage in range(self.config.n_stages):
+                for i in range(self.config.n_iter_per_stage):
+                    
+                    A = self.asm_driver.step()
+                    T = self.config.base_langevin_temp * (1.0 + 0.1 * math.log1p(A)) * (1 - stage/self.config.n_stages)
+                    
+                    optimizer.zero_grad()
+                    
+                    # Forward kinematics: Angles -> 3D Coordinates
+                    coords3d = self.builder(dihedrals)
+                    
+                    # Compute Energy/Loss
+                    loss, metrics = self.loss_engine.compute(coords3d, dihedrals, pred_distogram)
+                    loss.backward()
+                    
+                    # Step with ASM-driven noise
+                    torch.nn.utils.clip_grad_norm_([dihedrals], 1.0)
+                    optimizer.step_with_noise(T)
+                    
+                    if i % 50 == 0:
+                        print(f"   Iter {i:3d} | Total: {metrics['total']:7.2f} | "
+                              f"Rama: {metrics['rama']:5.2f} | Clash: {metrics['clash']:5.2f} | T: {T:5.1f}K | A: {A:3d}")
+                        
+        # Finalization
+        final_coords = self.builder(dihedrals).detach().cpu().numpy()
+        print("\n✅ Prediction Complete. Backbone Built.")
+        return final_coords
+
+if __name__ == "__main__":
+    cfg = CSOCAdvancedConfig(n_stages=2, n_iter_per_stage=100) # Fast settings for demo
+    predictor = AdvancedDeNovoPredictor(cfg)
+    
+    test_sequence = "MKTLLLTLVVVTIVCLDLGYAT"
+    predicted_structure = predictor.predict(test_sequence)
+    
+    print("\nOutput Shape (Length, Atoms[N,CA,C], XYZ):", predicted_structure.shape)
