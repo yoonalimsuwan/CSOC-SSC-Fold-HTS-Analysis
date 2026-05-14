@@ -102,3 +102,398 @@ Training data from AlphaFold_model_PDBs.zip — diverse folds, 26–2000+ residu
 
 ---
 
+# CSOC-SSC v12.4
+## Multiscale Criticality-Guided Biomolecular Folding Engine
+
+---
+
+## Overview
+
+CSOC-SSC v12.4 is a hybrid AI + physics biomolecular folding framework designed for:
+
+- De novo protein folding
+- SOC/RG-inspired structural emergence
+- Criticality-guided optimization
+- Differentiable biomolecular physics
+- Large-scale multiscale folding research
+
+Unlike conventional black-box folding systems, CSOC-SSC focuses on:
+
+- Interpretability
+- Statistical mechanics
+- Self-organized criticality (SOC)
+- Renormalization-group (RG) dynamics
+- Physics-informed optimization
+
+This framework is NOT intended as a direct AlphaFold replacement.
+
+Instead, it is a research-oriented folding engine exploring how:
+
+- Criticality
+- Adaptive universality classes
+- Information diffusion
+- Geometric emergence
+
+can drive biomolecular structure formation.
+
+---
+
+# Core Architecture
+
+CSOC-SSC v12.4 uses a hierarchical 4-layer architecture:
+
+```text
+Sequence
+    ↓
+Layer 1 — Biological Priors
+    ↓
+Layer 2 — SOC / SSC Dynamics
+    ↓
+Layer 3 — Differentiable Physics
+    ↓
+Layer 4 — Multiscale RG Refinement
+    ↓
+Final 3D Structure
+```
+
+---
+
+# Major Features
+
+## 1. Adaptive Universality Classes
+
+Each residue receives its own learnable critical exponent:
+
+```math
+K(r) = r^{-\alpha} e^{-r/\lambda}
+```
+
+where:
+
+- α is residue-specific
+- α is dynamically predicted
+- universality classes can vary across the same protein
+
+This allows:
+
+- long-range critical communication
+- local structural specialization
+- multifractal folding behavior
+
+---
+
+## 2. Contact Diffusion Dynamics
+
+The framework introduces contact-driven latent diffusion:
+
+```math
+H' = K H
+```
+
+where:
+
+- H is latent residue state
+- K is SOC kernel matrix
+
+This acts as an information propagation mechanism between:
+
+- geometry
+- latent chemistry
+- folding dynamics
+
+---
+
+## 3. SOC / SSC Criticality Engine
+
+CSOC-SSC continuously estimates system criticality:
+
+```math
+\sigma \sim 1
+```
+
+where:
+
+- σ < 1 → subcritical
+- σ > 1 → supercritical
+- σ ≈ 1 → critical regime
+
+The system dynamically adjusts temperature using:
+
+```math
+T_{dynamic} \propto |\sigma - 1|
+```
+
+This creates:
+
+- adaptive exploration
+- self-correcting dynamics
+- critical-state stabilization
+
+---
+
+## 4. Dynamic Langevin Thermostat
+
+Instead of standard optimization only, v12.4 uses:
+
+- stochastic Langevin refinement
+- criticality-aware noise injection
+- adaptive thermal fluctuations
+
+This helps escape:
+
+- local minima
+- folding traps
+- metastable conformations
+
+---
+
+## 5. Sparse GPU Physics
+
+The framework supports:
+
+- sparse contact graphs
+- KD-tree neighbor search
+- reduced GPU memory usage
+- large-scale residue systems
+
+Optimized for:
+
+- Colab T4
+- A100
+- CUDA mixed precision
+
+---
+
+## 6. RG Multiscale Refinement
+
+CSOC-SSC performs recursive coarse-to-fine refinement:
+
+```text
+Fine → Coarse → Refined → Upsampled
+```
+
+using:
+
+- RG-inspired hierarchy
+- cubic spline reconstruction
+- geometric smoothing
+
+This improves:
+
+- stability
+- convergence
+- multiscale consistency
+
+---
+
+# Physics Components
+
+The differentiable physics engine includes:
+
+- Bond constraints
+- Clash avoidance
+- Contact energies
+- SASA approximation
+- Hydrophobic collapse
+- Criticality regularization
+
+---
+
+# Key Differences from Conventional AI Folding
+
+| Feature | AlphaFold-style | CSOC-SSC |
+|---|---|---|
+| Black-box AI | High | Low |
+| Physics Interpretability | Limited | Strong |
+| SOC Dynamics | No | Yes |
+| RG Multiscale Dynamics | No | Yes |
+| Criticality Control | No | Yes |
+| Adaptive Universality Classes | No | Yes |
+| Langevin Thermostat | No | Yes |
+| Folding Emergence Focus | Limited | Core Principle |
+
+---
+
+# Computational Philosophy
+
+CSOC-SSC treats protein folding as:
+
+> an emergent critical phenomenon governed by geometry, information diffusion, and statistical mechanics.
+
+Rather than purely fitting structures from data, the framework investigates:
+
+- structural emergence
+- universality tuning
+- adaptive criticality
+- self-organized folding dynamics
+
+---
+
+# Training Status
+
+v12.4 supports both:
+
+## Physics-Only Mode
+No training required.
+
+The framework can already perform:
+
+- geometry optimization
+- SOC-driven refinement
+- folding exploration
+
+using handcrafted differentiable physics.
+
+---
+
+## Hybrid Learning Mode
+Optional supervised learning can be added using:
+
+- PDB datasets
+- distogram losses
+- torsion losses
+- RMSD supervision
+- criticality regularization
+
+Example:
+
+```python
+L_total =
+    L_distogram
+    + L_contact
+    + L_torsion
+    + L_rmsd
+    + lambda_crit * (sigma - 1.0)**2
+```
+
+---
+
+# Hardware Recommendations
+
+## Google Colab T4
+
+Recommended limits:
+
+| System Size | Recommended |
+|---|---|
+| 100–500 residues | Excellent |
+| 500–1500 residues | Good |
+| 1500–5000 residues | Requires optimization |
+| 10k+ residues | Use sparse batching |
+
+---
+
+# Dependencies
+
+```bash
+pip install torch numpy scipy
+```
+
+Optional:
+
+```bash
+pip install cupy-cuda12x
+```
+
+---
+
+# Example Usage
+
+```python
+from csoc_ssc_v124 import *
+
+cfg = V124Config()
+
+model = CSOCSSC_V124(cfg)
+
+result = model.optimize(backbone)
+```
+
+---
+
+# Research Applications
+
+CSOC-SSC v12.4 is designed for:
+
+- De novo folding
+- SOC biomolecular systems
+- RG-inspired optimization
+- Intrinsically disordered proteins
+- Folding criticality studies
+- Multiscale geometric emergence
+- Protein topology research
+
+---
+
+# Current Limitations
+
+This framework is experimental research software.
+
+Current limitations include:
+
+- no large-scale supervised training yet
+- no evolutionary MSA pipeline
+- no atomic side-chain reconstruction
+- no cryo-EM integration yet
+- no full molecular dynamics backend
+
+---
+
+# Future Directions
+
+Planned future research includes:
+
+- Criticality-aware training
+- Residue-specific thermodynamics
+- Protein-protein interactions
+- Cryo-EM restraints
+- Sparse diffusion transformers
+- Quantum-informed kernels
+- Adaptive RG schedules
+- Full side-chain reconstruction
+
+---
+
+# License
+
+MIT License
+
+Copyright (c) 2026  
+Yoon A Limsuwan
+
+---
+
+# Citation
+
+If you use this framework in research, please cite:
+
+```bibtex
+@software{csoc_ssc_v124,
+  author = {Yoon A Limsuwan},
+  title = {CSOC-SSC v12.4: Multiscale Criticality-Guided Biomolecular Folding Engine},
+  year = {2026},
+  license = {MIT}
+}
+```
+
+---
+
+# Disclaimer
+
+CSOC-SSC is an experimental research framework.
+
+It is intended for:
+
+- computational physics research
+- biomolecular systems exploration
+- SOC/RG investigations
+
+It is NOT validated for:
+
+- medical applications
+- pharmaceutical decisions
+- clinical usage
+
+Use at your own discretion.
+
+---
