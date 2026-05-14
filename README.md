@@ -16,9 +16,7 @@
 A physically interpretable protein structure prediction framework combining:
 1. **Controlled SOC (CSOC)** — learnable kernel K_α(r) = (r+ε)^{−α}·exp(−r/λ) that tunes SOC universality class
 2. **Semantic-State Contraction (SSC v6)** — deterministic fixed-point operator (ε_FP=0.0028, σ→1)
-3. **3-stage energy minimization** — bond + dihedral + tight distogram (tol=0.05Å) + clash removal
-4. **DistogramNet** — multi-task neural network (36-bin distogram + Q3 + contact) trained on 862 AF2 structures
-5. **HTS integration** — connects SOC burial states to cell-based ΔΔG stability landscape
+3. **HTS integration** — connects SOC burial states to cell-based ΔΔG stability landscape
 
 ---
 
@@ -107,26 +105,6 @@ Training data from AlphaFold_model_PDBs.zip — diverse folds, 26–2000+ residu
 *Author*: Yoon A Limsuwan  
 *License*: MIT  
 *Year*: 2026  
-
----
-
-## Table of Contents
-
-1. [Project Narrative: V23 → V24 → V24.1](#project-narrative-v23--v24--v241)
-2. [Overall Architecture](#overall-architecture)
-3. [Key Features Across All Versions](#key-features-across-all-versions)
-4. [Installation](#installation)
-5. [Quick Start](#quick-start)
-6. [Command‑Line Arguments](#command-line-arguments)
-7. [Physics Energy Terms](#physics-energy-terms)
-8. [SOC Dynamics & Criticality](#soc-dynamics--criticality)
-9. [Renormalisation Group (RG) Refinement](#renormalisation-group-rg-refinement)
-10. [Dataset Format for Training](#dataset-format-for-training)
-11. [Performance Tips](#performance-tips)
-12. [Detailed Version History](#detailed-version-history)
-13. [Citation](#citation)
-14. [License](#license)
-15. [Acknowledgements](#acknowledgements)
 
 ---
 
