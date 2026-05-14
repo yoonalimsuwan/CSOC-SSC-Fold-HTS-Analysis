@@ -227,8 +227,8 @@ Cα coords            α (per residue)
 ## Installation
 
 ```bash
-git clone https://github.com/yourusername/csoc-ssc.git
-cd csoc-ssc
+git clone https://github.com/yoonalimsuwan/CSOC-SSC-REAL-FOLD-And-HTS-Analysis.git
+cd CSOC-SSC-REAL-FOLD-And-HTS-Analysis
 pip install torch numpy
 ```
 
