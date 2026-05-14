@@ -497,3 +497,258 @@ It is NOT validated for:
 Use at your own discretion.
 
 ---
+
+ด้านล่างคือไฟล์ README.md สำหรับโค้ด CSOC-SSC v16 แบบจัดเต็ม ใช้ภาษาอังกฤษให้เหมาะกับงาน research / GitHub repository พร้อมโครงสร้างมาตรฐาน
+
+
+---
+
+# CSOC-SSC v16  
+### Unified Multiscale Criticality-Guided Biomolecular Folding Engine
+
+**Author:** Yoon A Limsuwan  
+**License:** MIT  
+**Year:** 2026  
+
+---
+
+## Overview
+
+CSOC-SSC v16 is a research-oriented, physics-inspired deep learning framework for **protein backbone refinement and folding simulation**.  
+It integrates:
+
+- Self-Organized Criticality (SOC / SSC) dynamics  
+- Equivariant geometric modeling  
+- Diffusion-based coordinate refinement  
+- Learned torsion and Ramachandran energy landscapes  
+- Coarse-grained molecular physics constraints  
+- GPU-accelerated optimization pipeline  
+
+The system is designed for **exploratory computational biophysics**, not production-grade molecular simulation.
+
+---
+
+## Key Features
+
+### 🧠 Machine Learning Components
+- Geometry-aware Transformer encoder
+- Residue-level sequence embedding
+- Adaptive α-field prediction (criticality scaling)
+- Learned torsion energy model
+- Differentiable rotamer entropy modeling
+
+### 🧬 Structural Biology Constraints
+- Backbone reconstruction (N–CA–C–O)
+- Ramachandran priors
+- Angular hydrogen bond modeling
+- Debye-Hückel electrostatics
+- Solvent exposure approximation
+- Multimer interaction energy
+
+### ⚛️ Physics-Inspired Modeling
+- SOC-driven temperature adaptation
+- Contact diffusion kernel
+- Neighbor-list distance filtering
+- Equivariant coordinate correction
+- Diffusion-based coordinate refinement
+- RG-style coarse-to-fine geometry refinement
+
+### 🚀 Performance & Engineering
+- CUDA + AMP mixed precision support
+- Gradient scaling (GradScaler)
+- Langevin-style stochastic optimizer
+- GPU-friendly tensor operations
+- Large-scale sequence support (≈100–1000 residues)
+
+---
+
+## System Architecture
+
+Sequence → Embedding → Geometry Transformer → Latent Representation → α-field Prediction → Contact Diffusion → Coordinate Refinement → Physics Energy Evaluation → Langevin Optimization Loop → RG Coarse-to-Fine Refinement
+
+---
+
+## Energy Terms
+
+The total optimization objective:
+
+- Bond geometry energy  
+- Clash penalty  
+- Contact map consistency  
+- Ramachandran energy  
+- Torsion energy  
+- Hydrogen bond alignment  
+- Rotamer entropy penalty  
+- Electrostatics (Debye-Hückel)  
+- Solvent exposure energy  
+- Diffusion regularization  
+- Equivariance consistency  
+- SOC criticality constraint  
+- Multimer interaction energy  
+
+---
+
+## Installation
+
+### Requirements
+- Python 3.10+
+- PyTorch 2.x
+- CUDA 12+
+- NumPy
+
+### Install
+```bash
+pip install torch numpy
+
+Optional (recommended for GPU acceleration):
+
+pip install torch --index-url https://download.pytorch.org/whl/cu121
+
+
+---
+
+Usage
+
+Run Simulation
+
+python csoc_ssc_v16.py
+
+Example Workflow
+
+from csoc_ssc_v16 import CSOCSSC_V16, V16Config, Backbone
+import numpy as np
+
+cfg = V16Config()
+model = CSOCSSC_V16(cfg)
+
+backbone = Backbone(
+    ca=np.random.randn(200, 3),
+    seq="ACDEFGHIKLMNPQRSTVWY" * 10
+)
+
+refined_coords = model.optimize(backbone)
+
+
+---
+
+Output
+
+The model returns:
+
+Refined Cα coordinates (N × 3)
+
+Energy-minimized backbone structure
+
+Optional multimer-separated chains
+
+RMSD improvement relative to input
+
+
+Example output:
+
+[v16] step=0000 E=12.45 rama=1.23 torsion=0.98 hbond=0.56 T=300.12
+[v16] step=0050 E=9.87 ...
+[v16] step=0200 RG refinement applied
+
+
+---
+
+Algorithm Highlights
+
+1. SOC Temperature Control
+
+Dynamic temperature adapts based on coordinate fluctuation:
+
+T = T_0 (1 + 2 |\sigma - 1|)
+
+
+---
+
+2. Contact Diffusion Kernel
+
+Distance-weighted latent mixing:
+
+K_{ij} = (D_{ij})^{-α} e^{-D_{ij}/12}
+
+
+---
+
+3. Equivariant Coordinate Update
+
+Latent-to-space correction:
+
+Preserves translation invariance
+
+Stabilizes structural refinement
+
+
+
+---
+
+4. RG Refinement
+
+Hierarchical coarse-graining followed by interpolation-based reconstruction.
+
+
+---
+
+Limitations
+
+Physics approximations are coarse-grained
+
+No explicit quantum chemistry
+
+No solvent PDE simulation
+
+Rotamer model is simplified entropy-based approximation
+
+Stability depends on hyperparameter tuning
+
+
+
+---
+
+Intended Use
+
+Protein structure research
+
+Machine learning in structural biology
+
+SOC / criticality systems modeling
+
+Geometric deep learning experimentation
+
+Diffusion-based molecular refinement research
+
+
+
+---
+
+Citation
+
+If used in research, please cite:
+
+Yoon A Limsuwan (2026)
+CSOC-SSC v16: Unified Multiscale Criticality-Guided Biomolecular Folding Engine
+MIT License
+
+
+---
+
+Disclaimer
+
+This project is an experimental research prototype.
+It is not intended for clinical, pharmaceutical, or production-grade biochemical use.
+
+
+---
+
+License
+
+MIT License
+
+
+---
+
+---
+
