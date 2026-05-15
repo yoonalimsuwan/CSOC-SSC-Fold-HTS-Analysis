@@ -529,6 +529,7 @@ Multimer support Yes Yes (native)
 Multi‑GPU scaling Limited DDP + FlashAttention
 Deterministic output No (diffusion) Yes
 
+And V29 For N > 100000
 ---
 
 📝 Citation
