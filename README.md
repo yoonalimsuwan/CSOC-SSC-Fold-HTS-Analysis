@@ -764,7 +764,7 @@ Use --num_replicas 4 to run four parallel refinements on 4 GPUs and keep the bes
 3. Run HTS FOLD v31 – Full Mutational Scan
 
 ```bash
-python hts_fold_v31.py --pdb refined_1abc.pdb --scan --relax_steps 20 --gpu --output ./hts_output
+python CSOC‑SSC HTS FOLD v31 FULL — Complete Mutational Scanning & Epistasis Engine with Structure‑Based ΔΔG, Relaxation, Heatmaps.py --pdb refined_1abc.pdb --scan --relax_steps 20 --gpu --output ./hts_output
 ```
 
 · --scan enables full single‑mutation scanning (all 20 amino acids at every position)
@@ -775,13 +775,13 @@ python hts_fold_v31.py --pdb refined_1abc.pdb --scan --relax_steps 20 --gpu --ou
 4. Scan Specific Mutations Only
 
 ```bash
-python hts_fold_v31.py --pdb refined.pdb --mutations 30F 45A 72W --gpu
+python CSOC‑SSC HTS FOLD v31 FULL — Complete Mutational Scanning & Epistasis Engine with Structure‑Based ΔΔG, Relaxation, Heatmaps.py --pdb refined.pdb --mutations 30F 45A 72W --gpu
 ```
 
 5. Combine with External ddG / Epistasis Data
 
 ```bash
-python hts_fold_v31.py --data ./my_ddg_files/ --pdb refined.pdb --scan --output ./analysis
+python CSOC‑SSC HTS FOLD v31 FULL — Complete Mutational Scanning & Epistasis Engine with Structure‑Based ΔΔG, Relaxation, Heatmaps.py --data ./my_ddg_files/ --pdb refined.pdb --scan --output ./analysis
 ```
 
 This will additionally compute ΔΔG statistics, epistasis distributions, and GEMME correlations from your CSV/ZIP files.
@@ -824,7 +824,7 @@ python CSOC‑SSC REAL FOLD v30 FULL Version— Production‑Grade Hybrid Foldin
 For HTS FOLD:
 
 ```bash
-python hts_fold_v31.py ... --lj_params lj_params.json --charge_params charge_params.json
+python CSOC‑SSC HTS FOLD v31 FULL — Complete Mutational Scanning & Epistasis Engine with Structure‑Based ΔΔG, Relaxation, Heatmaps.py ... --lj_params lj_params.json --charge_params charge_params.json
 ```
 
 ---
