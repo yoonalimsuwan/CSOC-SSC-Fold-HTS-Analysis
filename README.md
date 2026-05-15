@@ -547,7 +547,7 @@ Deterministic output No (diffusion) Yes
 
 MIT License — free for academic and commercial use, modification, and redistribution.
 
-```
+`
 # CSOC‑SSC HTS FOLD v28 — High‑Throughput Mutational Scanning & Epistasis Analyzer
 
 ### 🔬 From Stability Landscapes to Physics‑Guided Mutagenesis
@@ -579,7 +579,7 @@ directories) and optionally accelerates statistical tests on **GPU**.
 
 ### 📥 Installation
 
-```bash
+``
 # From the CSOC‑SSC repository
 git clone https://github.com/yoonalimsuwan/CSOC-SSC-REAL-FOLD-DENOVO-And-HTS-Analysis.git
 cd CSOC-SSC-REAL-FOLD-DENOVO-And-HTS-Analysis
@@ -599,7 +599,8 @@ Requirements: Python ≥ 3.8, standard data science stack. CuPy is only needed f
 
 Command‑line analysis
 
-```bash
+```
+
 # Analyse a single ZIP file (legacy format)
 python CSOC‑SSC HTS FOLD V28 — High‑Throughput Screening Analysis Engine .py --data Data_tables_for_figs.zip --output ./results
 
@@ -612,7 +613,7 @@ python CSOC‑SSC HTS FOLD V28 — High‑Throughput Screening Analysis Engine .
 # Connect with a CSOC‑SSC refined structure for structure‑based predictions
 python CSOC‑SSC HTS FOLD V28 — High‑Throughput Screening Analysis Engine .py --data ./mutants.csv --pdb refined_complex_v28.pdb
 ```
-
+`
 Python API
 
 ```python
@@ -627,8 +628,8 @@ config = HTSConfig(
 )
 analyzer = HTSAnalyzerV28(config)
 results = analyzer.run_analysis()
-```
 
+```
 ---
 
 📊 Output Structure
