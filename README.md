@@ -271,31 +271,31 @@ All examples use the V26 script. The engine works with both python for single‑
 1. Train the neural predictor (synthetic demo – single GPU)
 
 ```bash
-python csoc_v26.py train --samples 500 --epochs 50 --batch_size 8 --device cuda
+python CSOC‑SSC-REAL-FOLD-DE-NOVO-v26-Fully-Vectorized-GPU‑Native-SOC-Folding-Engine.py train --samples 500 --epochs 50 --batch_size 8 --device cuda
 ```
 
 2. Train on multiple GPUs with torchrun
 
 ```bash
-torchrun --nproc_per_node=4 csoc_v26.py train --samples 2000 --epochs 80 --batch_size 16
+torchrun --nproc_per_node=4 CSOC‑SSC-REAL-FOLD-DE-NOVO-v26-Fully-Vectorized-GPU‑Native-SOC-Folding-Engine.py train --samples 2000 --epochs 80 --batch_size 16
 ```
 
 3. Refine a sequence from scratch (neural prediction as starting point)
 
 ```bash
-python csoc_v26.py refine --seq "ACDEFGHIKLMNPQRSTVWY" --out refined.pdb
+python CSOC‑SSC-REAL-FOLD-DE-NOVO-v26-Fully-Vectorized-GPU‑Native-SOC-Folding-Engine.py refine --seq "ACDEFGHIKLMNPQRSTVWY" --out refined.pdb
 ```
 
 4. Refine a structure fetched from the RCSB PDB
 
 ```bash
-python csoc_v26.py refine --pdb 1UBQ --out 1ubq_refined.pdb
+python CSOC‑SSC-REAL-FOLD-DE-NOVO-v26-Fully-Vectorized-GPU‑Native-SOC-Folding-Engine.py refine --pdb 1UBQ --out 1ubq_refined.pdb
 ```
 
 5. Refine starting from a local PDB file
 
 ```bash
-python csoc_v26.py refine --seq "..." --init initial.pdb --out refined.pdb
+python CSOC‑SSC-REAL-FOLD-DE-NOVO-v26-Fully-Vectorized-GPU‑Native-SOC-Folding-Engine.py refine --seq "..." --init initial.pdb --out refined.pdb
 ```
 
 ---
