@@ -723,7 +723,7 @@ Powered by **Ewald PME** electrostatics, **EGNN + Transformer** deep learning, a
    git clone https://github.com/yoonalimsuwan/CSOC-SSC-REAL-FOLD-DENOVO-And-HTS-Analysis.git
 
    
-   cd csoc-ssc-v30
+   cd CSOC-SSC-REAL-FOLD-DENOVO-And-HTS-Analysis
 ```
 
 1. Install dependencies
@@ -742,7 +742,7 @@ Powered by **Ewald PME** electrostatics, **EGNN + Transformer** deep learning, a
 1. Train the V30 Model (Real PDB Data)
 
 ```bash
-python csoc_v30.py train --pdb_dir /path/to/pdb_directory --epochs 100 --batch_size 8
+python CSOC‑SSC REAL FOLD v30 FULL Version— Production‑Grade Hybrid Folding & Refinement Engine + Ewald PME + Real PDB Training + Configurable Force Fields + Robust Side‑Chain Builder + Multi‑GPU Refinement + Fixed SOC.py train --pdb_dir /path/to/pdb_directory --epochs 100 --batch_size 8
 ```
 
 The directory should contain .pdb files. The model will be saved in ./v30_ckpt/v30_pretrained.pt.
@@ -750,13 +750,13 @@ The directory should contain .pdb files. The model will be saved in ./v30_ckpt/v
 2. Refine a Protein Structure
 
 ```bash
-python csoc_v30.py refine --pdb 1abc --out refined_1abc.pdb --steps 600
+python CSOC‑SSC REAL FOLD v30 FULL Version— Production‑Grade Hybrid Folding & Refinement Engine + Ewald PME + Real PDB Training + Configurable Force Fields + Robust Side‑Chain Builder + Multi‑GPU Refinement + Fixed SOC.py refine --pdb 1abc --out refined_1abc.pdb --steps 600
 ```
 
 Or provide a sequence and initial CA coordinates:
 
 ```bash
-python csoc_v30.py refine --seq MKFLILFNILV --init init.pdb --out refined.pdb
+python CSOC‑SSC REAL FOLD v30 FULL Version— Production‑Grade Hybrid Folding & Refinement Engine + Ewald PME + Real PDB Training + Configurable Force Fields + Robust Side‑Chain Builder + Multi‑GPU Refinement + Fixed SOC.py refine --seq MKFLILFNILV --init init.pdb --out refined.pdb
 ```
 
 Use --num_replicas 4 to run four parallel refinements on 4 GPUs and keep the best.
@@ -818,7 +818,7 @@ charge_params.json
 Specify them on the command line:
 
 ```bash
-python csoc_v30.py refine ... --lj_params lj_params.json --charge_params charge_params.json
+python CSOC‑SSC REAL FOLD v30 FULL Version— Production‑Grade Hybrid Folding & Refinement Engine + Ewald PME + Real PDB Training + Configurable Force Fields + Robust Side‑Chain Builder + Multi‑GPU Refinement + Fixed SOC.py refine ... --lj_params lj_params.json --charge_params charge_params.json
 ```
 
 For HTS FOLD:
