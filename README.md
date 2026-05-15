@@ -202,6 +202,244 @@ Cα coords            α (per residue)
 
 ---
 
+# CSOC‑SSC — SOC‑Driven Neural‑Physical Protein Folding Engine
+
+**A family of de novo protein folding engines that combine deep learning, self‑organised criticality (SOC), differentiable physics, and renormalisation group (RG) refinement. This repository tracks the evolution from the sparse‑SOC V25.5 to the fully GPU‑vectorized V26, each a single‑file, MIT‑licensed implementation.**
+
+*Author*: Yoon A Limsuwan  
+*License*: MIT  
+*Year*: 2026  
+
+---
+
+## Project Narrative: V25.5 → V26
+
+The CSOC‑SSC project reached a research‑grade milestone with **V25.5**, which introduced two critical innovations: a sparse SOC neighbour graph (replacing the O(N²) dense kernel) and a fully differentiable avalanche loss. These changes made the engine scalable to realistic protein lengths (>500 residues) and allowed the SOC dynamics to be trained end‑to‑end. However, V25.5 still relied on a CPU kd‑tree for graph construction and contained a few Python loops that limited GPU throughput.
+
+**V26** takes the final step toward a production‑grade, HPC‑ready folding engine. Every operation now runs on the GPU without CPU synchronisation. The sparse graph is built via `torch.cdist` and thresholding, the avalanche loss is completely vectorized, and the rotamer energy is computed using the same sparse edges. The result is a **fully GPU‑native, fully differentiable, scalable** folding engine that preserves all the physics, SOC, and RG features of its predecessors.
+
+---
+
+## Overall Architecture (V26)
+
+```
+
+Sequence → [Embedding + Sinusoidal Positional Encoding]
+↓
+[FlashAttention Encoder (6 layers)]
+↓
+Latent
+/      
+    [Geometry Decoder]   [Adaptive α Field]
+Cα coords            α (per residue)
+
+```
+
+**Refinement loop** (per step):
+1. Build sparse SOC graph from current coordinates on‑GPU (using `torch.cdist` + threshold).
+2. Reconstruct backbone atoms (N, C, O) from the Cα trace.
+3. Compute physical energies: bond, angle, Ramachandran, clash, hydrogen bond, electrostatics, solvation, rotamer (sparse), SOC contact (sparse), α regularisation, and vectorized avalanche loss.
+4. Optionally add a soft restraint to the initial neural prediction (computed once).
+5. Backpropagate to populate `coords.grad`.
+6. Optimiser step (Adam) + Langevin noise (temperature from CSOC).
+7. Every 100 steps: rebuild the sparse graph on GPU.
+8. Every 200 steps: differentiable RG block‑averaging and upsampling.
+
+---
+
+## Key Features (V26)
+
+- **Fully GPU‑native**: all operations, including graph building, avalanche, and rotamer energy, run on GPU without CPU synchronisation.
+- **Sparse SOC kernel**: O(N log N) neighbour graph via `torch.cdist` with a distance cutoff.
+- **Differentiable, vectorized avalanche**: stress‑triggered neighbour displacement expressed as a loss term, no `.data` mutation, compatible with AMP and `torch.compile`.
+- **FlashAttention** Transformer encoder for efficient training.
+- **Adaptive α‑field** (0.5–3.0) that modulates bond lengths, angles, Ramachandran widths, clash radii, and H‑bond distances.
+- **Full physics energy stack**: bond, angle, Ramachandran, clash, H‑bond (angular), Debye‑Hückel electrostatics, burial‑based implicit solvent, and sparse rotamer packing.
+- **CSOC criticality controller**: soft sigmoidal temperature based on structural instability σ.
+- **Differentiable RG refinement** via `F.avg_pool1d` and `F.interpolate`.
+- **Distributed Data Parallel** training with AMP and gradient accumulation.
+- **PDB fetching** from RCSB for benchmarking.
+- **Checkpointing** for both the neural predictor and refinement progress.
+- **Single‑file, MIT‑licensed implementation** – easy to audit, extend, and deploy.
+
+---
+
+Quick Start (V26)
+
+All examples use the V26 script. The engine works with both python for single‑GPU and torchrun for multi‑GPU.
+
+1. Train the neural predictor (synthetic demo – single GPU)
+
+```bash
+python csoc_v26.py train --samples 500 --epochs 50 --batch_size 8 --device cuda
+```
+
+2. Train on multiple GPUs with torchrun
+
+```bash
+torchrun --nproc_per_node=4 csoc_v26.py train --samples 2000 --epochs 80 --batch_size 16
+```
+
+3. Refine a sequence from scratch (neural prediction as starting point)
+
+```bash
+python csoc_v26.py refine --seq "ACDEFGHIKLMNPQRSTVWY" --out refined.pdb
+```
+
+4. Refine a structure fetched from the RCSB PDB
+
+```bash
+python csoc_v26.py refine --pdb 1UBQ --out 1ubq_refined.pdb
+```
+
+5. Refine starting from a local PDB file
+
+```bash
+python csoc_v26.py refine --seq "..." --init initial.pdb --out refined.pdb
+```
+
+---
+
+Command‑Line Arguments (V26)
+
+train
+
+Argument Default Description
+--samples 1000 Number of synthetic sequences for demo training
+--epochs 80 Training epochs
+--batch_size 8 Mini‑batch size per GPU
+
+(DDP is activated automatically when launched with torchrun)
+
+refine
+
+Argument Default Description
+--seq None Amino‑acid sequence (one‑letter code). Required unless --pdb used.
+--pdb None RCSB PDB ID to fetch (e.g., 1UBQ). Overrides --seq.
+--init None Optional local PDB file with initial CA coordinates.
+--out refined_v26.pdb Output PDB path.
+--steps 600 Number of refinement steps.
+--checkpoint v26_pretrained.pt Path to pretrained model weights.
+
+---
+
+Physics Energy Terms (V26)
+
+All energies are computed on the reconstructed backbone atoms (N, C, O) from the Cα trace using idealised peptide geometry. The α‑field modulates many local terms, acting as a universality‑class controller – low α makes a residue stiff, high α makes it flexible.
+
+Term Description α‑Modulation
+Bond ((d – d_target)²) , d_target = 3.8·(1 + α_mod·(α–1)) Target length
+Angle ((cos θ – cos θ_target)²) , θ_target = 110°·(1 + α_mod·(α–1)) Target angle
+Ramachandran ((φ–φ₀)² + (ψ–ψ₀)²) / width_eff² , width_eff = width·(1 + α_mod·(α–1)) Allowed width
+Clash ReLU(radius – r)² , radius = 3.5·(1 + α_mod·(α–1)) Clash radius
+H‑bond –alignment · exp(–((d – d_ideal)/0.3)²) , d_ideal = 2.9·(1 + α_mod·(α–1)) Ideal distance
+Electrostatics q_i q_j exp(–κ r) / (ε r) (Debye‑Hückel, κ=0.1, ε=80) None
+Solvation Hydrophobic penalty when exposed; hydrophilic penalty when buried None
+Rotamer (sparse) Penalty for Cβ clashing with neighbouring Cα atoms, computed only on sparse graph edges None
+SOC Contact (sparse) –K_ij · exp(–r_ij/8) – couples the SOC kernel to distances, computed only on sparse edges Kernel depends on α
+Avalanche (vectorized) Weighted sum of –K_edge * (coords[dst] · direction[src]) for stressed residues Kernel depends on α
+α Regularisation Entropy + spatial smoothness of the α field –
+
+All weights are configurable in the V26Config dataclass.
+
+---
+
+SOC Dynamics & Criticality
+
+· Sparse SOC kernel: K = r^(-α_ij) * exp(–r/λ) computed only for residue pairs within sparse_cutoff (default 12 Å). This reduces complexity from O(N²) to O(E).
+· σ (avalanche intensity): Mean displacement of Cα positions since last step.
+· Temperature: Soft sigmoid: T = T_base + 2000 · sigmoid((σ – σ_target)/0.5) – no hard clamps.
+· Langevin noise: Added to coordinates after each gradient step, scaled by √(2·friction·T/T_base) * lr.
+· Avalanche loss: Residues with gradient norm > threshold contribute a loss that pushes their top neighbours (selected by kernel weight) along the negative gradient direction. Fully vectorized on GPU.
+
+---
+
+Renormalisation Group (RG) Refinement
+
+Every rg_interval (default 200) steps, the Cα chain is coarse‑grained by average pooling (F.avg_pool1d, factor=4) and then linearly interpolated back to the original length. This differentiable operation encourages multi‑scale consistency.
+
+---
+
+Dataset Format (for Training)
+
+Provide a list of (sequence, coordinates) tuples. Coordinates must be centred (zero mean) because the decoder output is zero‑centred. Example:
+
+```python
+data = [
+    ("ACDEF...", np.array([[x1,y1,z1], ...], dtype=np.float32) - mean),
+    ...
+]
+```
+
+The included ProteinDataset expects such a list. For production, replace the synthetic generator with a PDB‑parsing pipeline that extracts Cα atoms, centres them, and maps three‑letter codes to one‑letter codes.
+
+---
+
+Performance Tips (V26)
+
+· GPU: At least 8 GB VRAM recommended for proteins up to 500 residues.
+· Scaling: The sparse graph builder is O(N²) only for the initial cdist step, but thresholding and edge selection are O(N²) as well – for N > 2000 you may want to increase the graph rebuild interval or use a larger cutoff.
+· Graph rebuild: Adjust rebuild_interval (default 100) to balance accuracy and speed.
+· AMP: Enabled by default for ~2× speedup.
+· Real data: The synthetic dataset is only a demo. Train on a non‑redundant set of PDB chains (≥10 000) for meaningful results.
+
+---
+
+Version History
+
+V25.5 — Sparse SOC + Differentiable Avalanche
+
+· Introduced sparse neighbour graph using a radius cutoff, reducing SOC kernel complexity from O(N²) to O(N log N + E).
+· Replaced explicit coordinate mutation with a differentiable avalanche loss that pushes neighbours via gradient direction.
+· Fixed RG refinement using F.avg_pool1d and F.interpolate.
+· Kept CPU kd‑tree for graph building and a few Python loops in avalanche/rotamer energies.
+
+V26 — Fully GPU‑Vectorized Engine
+
+· Sparse graph builder now runs entirely on GPU via torch.cdist and thresholding – no CPU synchronisation.
+· Avalanche loss is fully vectorized using tensor indexing and scatter operations – no Python loops.
+· Rotamer energy uses the sparse edges, reducing cost from O(L²) to O(E).
+· Alpha field explicitly clamped to [0.5, 3.0] for stability.
+· Graph rebuild interval increased to 100 steps (configurable).
+· All other V25.5 features (FlashAttention, DDP, PDB fetcher, etc.) are retained.
+
+V26 is the recommended version for all new work – it is scalable, numerically robust, and ready for HPC deployment.
+
+---
+
+Citation
+
+If you use this work in your research, please cite:
+
+```
+Yoon A Limsuwan. "CSOC‑SSC v26: GPU‑Native SOC‑Driven Neural‑Physical Protein Folding Engine." GitHub, 2026.
+```
+
+BibTeX:
+
+```bibtex
+@software{limsuwan2026csocv26,
+  author       = {Yoon A Limsuwan},
+  title        = {CSOC‑SSC v26: GPU‑Native SOC‑Driven Neural‑Physical Protein Folding Engine},
+  year         = {2026},
+  url          = {https://github.com/yourusername/csoc-ssc}
+}
+```
+
+---
+
+License
+
+This project is released under the MIT License. See the LICENSE file for details.
+
+---
+
+Acknowledgements
+
+This engine builds upon decades of research in protein biophysics, self‑organised criticality, renormalisation group theory, and deep learning for structure prediction. The author thanks the open‑source community for the tools that made this implementation possible.
+
+```
+
 ## Installation
 
 ```bash
@@ -211,3 +449,4 @@ pip install torch numpy
 ```
 
 Requirements: Python ≥3.8, PyTorch ≥2.0 (CUDA recommended), NumPy. For distributed training, ensure torch.distributed is available (it is included in standard PyTorch distributions).
+
