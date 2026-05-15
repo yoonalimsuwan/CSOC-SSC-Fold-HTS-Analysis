@@ -548,3 +548,131 @@ Deterministic output No (diffusion) Yes
 MIT License — free for academic and commercial use, modification, and redistribution.
 
 ```
+# CSOC‑SSC HTS FOLD v28 — High‑Throughput Mutational Scanning & Epistasis Analyzer
+
+### 🔬 From Stability Landscapes to Physics‑Guided Mutagenesis
+
+**HTS FOLD v28** is the companion analytical engine for the CSOC‑SSC protein folding suite.  
+It processes experimental **ΔΔG stability landscapes**, detects **epistatic couplings**,  
+correlates mutational effects with **evolutionary (GEMME) scores**, and — when coupled with  
+a CSOC‑SSC refined structure — can perform **structure‑based in silico saturation mutagenesis**.
+
+Built for large‑scale screening datasets, it handles **multiple independent files** (CSV, ZIP,  
+directories) and optionally accelerates statistical tests on **GPU**.
+
+---
+
+### ✨ Key Features
+
+| Feature | Description |
+|---------|-------------|
+| **Multi‑source data loader** | Reads single CSV, ZIP archives, or entire directories of data tables. |
+| **ΔΔG statistical profiling** | Aggregates mean, median, quartiles, and distributions across all samples. |
+| **Epistasis detection** | Identifies double‑mutant pairs with |ε| > threshold, computes significance. |
+| **GEMME–ΔΔG correlation** | Quantifies how well evolutionary constraint predicts experimental ΔΔG (Pearson & Spearman). |
+| **GPU‑accelerated calculations** | Uses CuPy for correlation on very large datasets (optional). |
+| **Publication‑ready visualisation** | Histograms, scatter plots, bar charts with seaborn styling, high DPI. |
+| **Structure‑based ΔΔG prediction** | (Integration mode) Uses a CSOC‑SSC refined PDB to compute mutational energy differences. |
+| **JSON report export** | All statistics and results saved for downstream analysis. |
+
+---
+
+### 📥 Installation
+
+```bash
+# From the CSOC‑SSC repository
+git clone https://github.com/yoonalimsuwan/CSOC-SSC-REAL-FOLD-DENOVO-And-HTS-Analysis.git
+cd CSOC-SSC-REAL-FOLD-DENOVO-And-HTS-Analysis
+
+# Core dependencies
+pip install pandas numpy scipy matplotlib seaborn scikit-learn
+
+# Optional GPU acceleration
+pip install cupy-cuda12x  # adjust to your CUDA version
+```
+
+Requirements: Python ≥ 3.8, standard data science stack. CuPy is only needed for --gpu flag.
+
+---
+
+🚀 Quick Start
+
+Command‑line analysis
+
+```bash
+# Analyse a single ZIP file (legacy format)
+python hts_fold_v28.py --data Data_tables_for_figs.zip --output ./results
+
+# Multiple independent sources (CSV, ZIP, directory)
+python hts_fold_v28.py --data ./screen1.csv ./screen2.zip ./batch3/ --ddg_threshold 0.7
+
+# Enable GPU acceleration for large datasets
+python hts_fold_v28.py --data ./huge_dataset.csv --gpu
+
+# Connect with a CSOC‑SSC refined structure for structure‑based predictions
+python hts_fold_v28.py --data ./mutants.csv --pdb refined_complex_v28.pdb
+```
+
+Python API
+
+```python
+from hts_fold_v28 import HTSAnalyzerV28, HTSConfig
+
+config = HTSConfig(
+    data_sources=["/path/to/data1.csv", "/path/to/data2.zip"],
+    output_dir="./analysis_output",
+    ddg_threshold=0.5,
+    pdb_structure="refined.pdb",   # optional
+    use_gpu=False
+)
+analyzer = HTSAnalyzerV28(config)
+results = analyzer.run_analysis()
+```
+
+---
+
+📊 Output Structure
+
+After a successful run, the output directory contains:
+
+```
+analysis_output/
+├── ddg_distribution.png         # global ΔΔG histogram
+├── epistasis_distribution.png   # ε distribution with threshold
+├── gemme_correlations.png       # correlation bar chart
+├── structure_ddg.png            # (if PDB provided) predicted ΔΔG
+└── analysis_summary.json        # all numerical results
+```
+
+---
+
+🔗 Integration with CSOC‑SSC Folding Engine
+
+HTS FOLD v28 is designed to work hand‑in‑hand with CSOC‑SSC v27/v28:
+
+1. Obtain an initial structure (e.g., from AlphaFold, or use CSOC‑SSC stand‑alone prediction).
+2. Refine the structure using csoc_v28.py refine ... — this produces a physically stable full‑atom PDB.
+3. Feed that PDB into HTS FOLD via --pdb refined.pdb. The engine can then compute ΔΔG for any mutation found in your screening data by evaluating the CSOC‑SSC energy function for wild‑type and mutant.
+
+This creates a fully closed‑loop mutagenesis platform — from sequence to stability prediction — without relying on external web services.
+
+---
+
+📜 License
+
+MIT License — free for academic and commercial use, modification, and redistribution.
+
+---
+
+📝 Citation
+
+```bibtex
+@software{limsuwan2026csoc_hts_fold,
+  author = {Yoon A Limsuwan},
+  title = {CSOC‑SSC HTS FOLD v28: High‑Throughput Mutational Scanning \& Epistasis Analyzer},
+  year = {2026},
+  url = {https://github.com/yoonalimsuwan/CSOC-SSC-REAL-FOLD-DENOVO-And-HTS-Analysis}
+}
+```
+
+```
