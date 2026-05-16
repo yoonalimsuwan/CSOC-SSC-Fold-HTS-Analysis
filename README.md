@@ -941,7 +941,7 @@ Usage (v30.1.1)
 Refinement (with pre‑trained checkpoint)
 
 ```bash
-python csoc_v30_1_1.py refine \
+python CSOC‑SSC REAL FOLD v30.1.1 — MSA‑Enabled Hybrid Folding Engine.py refine \
   --seq "MKFLILFNILV" \
   --msa path/to/alignment.npy \          # optional
   --checkpoint v30_1_1_pretrained.pt \
@@ -956,10 +956,10 @@ Each MSA file should have shape (N_seq, L, 22).
 
 ```bash
 # Single‑sequence training
-python csoc_v30_1_1.py train --pdb_dir ./pdbs --epochs 80
+python CSOC‑SSC REAL FOLD v30.1.1 — MSA‑Enabled Hybrid Folding Engine.py train --pdb_dir ./pdbs --epochs 80
 
 # With MSA
-python csoc_v30_1_1.py train --pdb_dir ./pdbs --msa_dir ./msas --epochs 80
+python CSOC‑SSC REAL FOLD v30.1.1 — MSA‑Enabled Hybrid Folding Engine.py train --pdb_dir ./pdbs --msa_dir ./msas --epochs 80
 ```
 
 A checkpoint v30_1_1_pretrained.pt will be saved in ./v30_1_1_ckpt/.
@@ -985,7 +985,7 @@ Key Features (v30.6)
 
 Installation (v30.6)
 
-Same as v30.1.1. Ensure you have the main csoc_v30_1.py (or csoc_v30_1_1.py) available, as v30.6 reuses its encoder and EGNN layers.
+Same as v30.1.1. Ensure you have the main CSOC‑SSC REAL FOLD v30.1.1 — MSA‑Enabled Hybrid Folding Engine.py available, as v30.6 reuses its encoder and EGNN layers.
 
 Usage (v30.6)
 
