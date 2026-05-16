@@ -881,6 +881,181 @@ This project is released under the MIT License. See LICENSE for details.
 
 ---
 
-For questions or collaborations, open an issue or contact Yoon A Limsuwan.
+For questions or collaborations, open an issue or contact Yoon A Limsuwan/ msps4u@gmail.com
+
+``
+# CSOC‑SSC v30 — Hybrid Protein Folding Engine
+
+**Author:** Yoon A Limsuwan  
+**License:** MIT  
+**Year:** 2026  
+
+A state‑of‑the‑art protein structure prediction system that combines deep learning, physics‑based refinement, and advanced mathematical frameworks (Itô calculus, BV formalism).  
+This repository contains two core modules:
+
+- **v30.1.1 – MSA‑Enabled Hybrid Folding Engine**  
+- **v30.6 – Diffusion‑based Protein Backbone Generation**
+
+Both modules can be used independently or together to achieve high‑accuracy **de novo** protein folding.
+
+---
+
+## Overview
+
+The CSOC‑SSC (Chiral Symmetry‑Organized Criticality – Secondary Structure Classifier) system provides a unified framework for protein folding.  
+- **v30.1.1** is the primary folding engine. It accepts a protein sequence and, optionally, a Multiple Sequence Alignment (MSA) to predict the 3D structure through a hybrid pipeline: a deep encoder‑decoder followed by a physics‑based refinement stage.  
+- **v30.6** is a diffusion model that generates high‑quality backbone coordinates from sequence (or MSA) embeddings. It can serve as a drop‑in replacement for the standard EGNN decoder in v30.1.1, yielding more accurate initial structures.
+
+Both modules leverage the same energy functions, sparse graph operations, and performance optimisations (PME, torch.compile, zero‑copy memory).
+
+---
+
+# CSOC‑SSC v30.1.1
+
+v30.1.1 extends the v30.1 architecture with **native MSA support**, allowing the model to exploit co‑evolutionary information for improved contact prediction and structural accuracy.
+
+## Key Features (v30.1.1)
+- **Hybrid Deep Learning + Physics**  
+  A Transformer encoder (or MSA axial attention encoder) feeds into an equivariant EGNN decoder to produce initial coordinates, which are then refined by a full physical energy function (bond, angle, Rama, clash, solvation, PME electrostatics, SOC, etc.).
+- **MSA‑Enabled**  
+  Optional `MSAEncoder` uses row‑wise + column‑wise attention to extract per‑residue features from a multiple sequence alignment.  
+- **Full‑atom Refinement**  
+  Side‑chain building with chi angle optimisation and torsion potentials.  
+- **Performance Optimisations**  
+  Particle‑Mesh Ewald (PME) long‑range electrostatics, `torch.compile(max‑autotune)`, pinned memory for zero‑copy transfers, multi‑GPU refinement.
+- **Robust Training Pipeline**  
+  Datasets for both single‑sequence and MSA‑augmented PDB data.
+
+## Installation (v30.1.1)
+1. **Requirements:** Python 3.10+, PyTorch 2.x with CUDA 11.8+, `torch-cluster`.
+2. **Install dependencies:**
+   ```bash
+   pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+   pip install torch-cluster
+```
+
+1. Clone the repository and place the script csoc_v30_1_1.py in your working directory.
+
+Usage (v30.1.1)
+
+Refinement (with pre‑trained checkpoint)
+
+```bash
+python csoc_v30_1_1.py refine \
+  --seq "MKFLILFNILV" \
+  --msa path/to/alignment.npy \          # optional
+  --checkpoint v30_1_1_pretrained.pt \
+  --steps 600 \
+  --out refined.pdb
+```
+
+Training
+
+Prepare data: PDB files in ./pdbs/ and, optionally, pre‑computed MSA one‑hot files (.npy) in ./msas/.
+Each MSA file should have shape (N_seq, L, 22).
+
+```bash
+# Single‑sequence training
+python csoc_v30_1_1.py train --pdb_dir ./pdbs --epochs 80
+
+# With MSA
+python csoc_v30_1_1.py train --pdb_dir ./pdbs --msa_dir ./msas --epochs 80
+```
+
+A checkpoint v30_1_1_pretrained.pt will be saved in ./v30_1_1_ckpt/.
+
+---
+
+CSOC‑SSC v30.6
+
+v30.6 implements a Denoising Diffusion Probabilistic Model (DDPM) for protein backbone generation. It can be used either as a standalone generative model or as an alternative decoder for v30.1.1.
+
+Key Features (v30.6)
+
+· SE(3)‑Equivariant Denoising Network
+    An EGNN‑based architecture that respects 3D rotations and translations.
+· Conditioning on Sequence / MSA
+    Uses the same encoders from v30.1.1 (single‑seq Transformer or MSA encoder) to steer the generation.
+· Flexible Noise Schedule
+    Cosine or linear beta schedules with configurable steps.
+· Efficient Sampling
+    Can generate a backbone in as few as 200 denoising steps.
+· Easy Integration
+    The sample output can be directly fed into v30.1.1’s refinement stage.
+
+Installation (v30.6)
+
+Same as v30.1.1. Ensure you have the main csoc_v30_1.py (or csoc_v30_1_1.py) available, as v30.6 reuses its encoder and EGNN layers.
+
+Usage (v30.6)
+
+Training the diffusion model
+
+```bash
+python csoc_v30_6_diffusion.py train \
+  --pdb_dir ./pdbs \
+  --msa_dir ./msas \          # optional
+  --epochs 100
+```
+
+Sampling a backbone
+
+```bash
+python csoc_v30_6_diffusion.py sample \
+  --seq "MKFLILFNILV" \
+  --checkpoint v30_6_diffusion.pt \
+  --steps 200 \
+  --out diffusion_output.pdb
+```
+
+If an MSA file is provided via --msa, the model will use it for conditioning.
+
+---
+
+Integration
+
+The diffusion module can replace the EGNN decoder in v30.1.1 to produce a better initial guess before physics‑based refinement:
+
+```python
+from csoc_v30_6_diffusion import CSOCSSC_Diffusion, V30_6Config
+from csoc_v30_1_1 import CSOCSSC_V30_1_1, V30_1_1Config
+
+# 1. Generate structure with diffusion
+cfg_diff = V30_6Config(device="cuda")
+diff_model = CSOCSSC_Diffusion(cfg_diff).to("cuda")
+diff_model.load_state_dict(torch.load("v30_6_diffusion.pt"))
+coords_init = diff_model.sample(seq_ids, msa=msa)  # (L, 3)
+
+# 2. Refine with full physics
+cfg_phys = V30_1_1Config(device="cuda")
+phys_model = CSOCSSC_V30_1_1(cfg_phys).to("cuda")
+phys_model.load_state_dict(torch.load("v30_1_1_pretrained.pt"))
+refined_ca, refined_chi, _ = phys_model.refine_multimer(
+    sequences, init_coords_list=[coords_init.cpu().numpy()], steps=600
+)
+```
+
+This pipeline yields structures approaching native accuracy while remaining purely de novo when MSA is omitted.
+
+---
+
+Citation
+
+If you use this code in your research, please cite:
+
+```bibtex
+@misc{limsuwan2026csoc,
+  author = {Yoon A Limsuwan},
+  title = {CSOC-SSC v30: Hybrid Protein Folding Engine with MSA and Diffusion},
+  year = {2026},
+  publisher = {GitHub},
+  url = {https://github.com/your-repo-link}
+}
+```
+
+License
+
+Distributed under the MIT License. See LICENSE file for details.
 
 ```
+
