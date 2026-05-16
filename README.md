@@ -992,7 +992,7 @@ Usage (v30.6)
 Training the diffusion model
 
 ```bash
-python csoc_v30_6_diffusion.py train \
+python CSOC‑SSC REAL FOLD v30.6 — Diffusion Module for Protein Backbone Generation.py train \
   --pdb_dir ./pdbs \
   --msa_dir ./msas \          # optional
   --epochs 100
@@ -1001,7 +1001,7 @@ python csoc_v30_6_diffusion.py train \
 Sampling a backbone
 
 ```bash
-python csoc_v30_6_diffusion.py sample \
+python CSOC‑SSC REAL FOLD v30.6 — Diffusion Module for Protein Backbone Generation.py sample \
   --seq "MKFLILFNILV" \
   --checkpoint v30_6_diffusion.pt \
   --steps 200 \
